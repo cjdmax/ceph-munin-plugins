@@ -1,0 +1,47 @@
+#!/usr/bin/python
+
+import munin
+from subprocess import Popen, PIPE
+import json
+import os
+
+class CephMDS(munin.MuninPlugin):
+    title = "OSD Reply Latency"
+    args = "--base 1000"
+    category = "Ceph"
+
+    @property
+    def fields(self):
+        f = [
+            ("replyl", dict(label="reply latency",
+                      info="s",
+                      type="GAUGE",
+                      min="0")),
+            # ("", dict(label="",
+            #           info="s",
+            #           type="GAUGE",
+            #           min="0")),
+            ]
+        return f
+
+    def execute(self):
+        if "cephmdsasok" not in os.environ:
+            return
+
+        cmd = "ceph --admin-daemon " + os.environ["cephmdsasok"] + " perfcounters_dump"
+        output = Popen(cmd.split(), stdout=PIPE).communicate()[0]
+        obj = json.loads(output)
+        mds = obj["mds"]
+
+        res = {}
+        def doit(n):
+            latency = mds[n]
+            if latency["avgcount"] == 0:
+                res[n] = float('nan')
+            else:
+                res[n] = latency["sum"] / latency["avgcount"]
+        doit("replyl")
+        return res
+
+if __name__ == "__main__":
+    CephMDS().run()

@@ -1,0 +1,64 @@
+#!/usr/bin/python
+
+import sys
+sys.path.append("munin-1.4-py2-none-any.whl")
+import munin
+from subprocess import Popen, PIPE
+import json
+import os
+
+class CephOSD(munin.MuninPlugin):
+    title = "OSD Op Count"
+    args = "--base 1000"
+    category = "Ceph"
+
+    @property
+    def fields(self):
+        f = [
+            ("op", dict(label="op count",
+                      info="Operations",
+                      type="COUNTER",
+                      min="0")),
+            ("op_r", dict(label="op r count",
+                      info="Operations",
+                      type="COUNTER",
+                      min="0")),
+            ("op_rw", dict(label="op rw count",
+                      info="Operations",
+                      type="COUNTER",
+                      min="0")),
+            ("op_w", dict(label="op w count",
+                      info="Operations",
+                      type="COUNTER",
+                      min="0")),
+            # ("", dict(label="",
+            #           info="s",
+            #           type="GAUGE",
+            #           min="0")),
+            ]
+        return f
+
+    def execute(self):
+        if "cephosdasok" not in os.environ:
+            return
+        plugin_name = list(os.path.split(sys.argv[0]))[1]
+        m = re.search("(?{})(/d+)_.*".format("ceph_osd_"), plugin_name )
+        osdnumber = m.group(0)
+        socketfile = os.environ["cephosdasok"]+osdnumber+".asok"
+
+        cmd = "ceph --admin-daemon " + socketfile + " perfcounters_dump"
+        output = Popen(cmd.split(), stdout=PIPE).communicate()[0]
+        obj = json.loads(output)
+        osd = obj["osd"]
+
+        res = {}
+        def doit(n):
+            res[n] = osd[n]
+        doit("op")
+        doit("op_r")
+        doit("op_rw")
+        doit("op_w")
+        return res
+
+if __name__ == "__main__":
+    CephOSD().run()

@@ -1,0 +1,70 @@
+#!/usr/bin/python
+
+import munin
+from subprocess import Popen, PIPE
+import json
+import os
+
+class CephMDS(munin.MuninPlugin):
+    title = "MDS Req Count"
+    args = "--base 1000"
+    category = "Ceph"
+
+    @property
+    def fields(self):
+        f = []
+        def insert(name):
+            obj = ("osdop_" + name,
+                   dict(label=name + " count",
+                        info="Operations",
+                        type="COUNTER",
+                        min="0"))
+            f.append(obj)
+        insert("stat")
+        insert("create")
+        insert("read")
+        insert("write")
+        insert("writefull")
+        insert("append")
+        insert("zero")
+        insert("truncate")
+        insert("delete")
+        insert("mapext")
+        insert("sparse_read")
+        insert("clonerange")
+        insert("getxattr")
+        insert("setxattr")
+        insert("cmpxattr")
+        insert("rmxattr")
+        insert("resetxattrs")
+        insert("tmap_up")
+        insert("tmap_put")
+        insert("tmap_get")
+        insert("call")
+        insert("watch")
+        insert("notify")
+        insert("src_cmpxattr")
+        insert("pgls")
+        insert("pgls_filter")
+        insert("other")
+
+        return f
+
+    def execute(self):
+        if "cephmdsasok" not in os.environ:
+            return
+
+        cmd = "ceph --admin-daemon " + os.environ["cephmdsasok"] + " perfcounters_dump"
+        output = Popen(cmd.split(), stdout=PIPE).communicate()[0]
+        obj = json.loads(output)
+        mds = obj["objecter"]
+
+        res = {}
+        def doit(n):
+            res[n] = mds[n]
+        for name, _ in self.fields:
+            doit(name)
+        return res
+
+if __name__ == "__main__":
+    CephMDS().run()

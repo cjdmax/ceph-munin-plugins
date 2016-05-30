@@ -1,0 +1,15 @@
+Please install python-munin (http://samuelks.com/python-munin/) to use
+this software. Make your own WHL file for this
+
+Please visit https://bitbucket.org/ebo/ceph-munin-plugins
+
+needs a few environment vars in munin plugin conf, liek so:
+[ceph_osd_*]
+user root
+env.cephosdasok /var/run/ceph/ceph-osd.
+
+The ceph OSD number and .asok ext is added by the script to make /run/ceph/ceph.osd.0.asok
+
+Only the OSD scripts have been edited to detect OSD number and include the wheelfile. Lazy. 
+
+

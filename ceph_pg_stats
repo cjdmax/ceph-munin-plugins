@@ -1,0 +1,71 @@
+#!/usr/bin/python
+
+import munin
+from subprocess import Popen, PIPE
+import json
+import os
+
+class CephStats(munin.MuninPlugin):
+    title = "PG States"
+    args = "--base 1000"
+    category = "Ceph"
+
+    @property
+    def fields(self):
+        f = []
+        def insert(name):
+            obj = ("pgstate_" + name,
+                   dict(label=name + " count",
+                        info="PG State",
+                        type="GAUGE",
+                        min="0"))
+            f.append(obj)
+        insert("active")
+        insert("clean")
+        insert("down")
+        insert("replay")
+        insert("scrubbing")
+        insert("degraded")
+        insert("inconsistent")
+        insert("peering")
+        insert("repair")
+        insert("recovering")
+        insert("recovery_wait")
+        insert("backfilling")
+        insert("wait_backfill")
+        insert("backfill_too_full")
+        insert("incomplete")
+        insert("stale")
+        insert("remapped")
+
+        return f
+
+    def execute(self):
+        # "pgmap": { "pgs_by_state": [
+        # { "state_name": "active+clean", "count": 5375}
+
+        cmd = "ceph -s -f json"
+        output = Popen(cmd.split(), stdout=PIPE).communicate()[0]
+        obj = json.loads(output)
+
+        infos = {}
+        
+        for state in obj["pgmap"]["pgs_by_state"]:
+            name = state["state_name"].split("+")
+            count = state["count"]
+            for n in name:
+                n = n.encode("utf-8")
+                if n not in infos:
+                    infos[n] = count
+                else:
+                    infos[n] += count
+
+        res = {}
+        def doit(n):
+            res[n] = infos.get(n[8:], 0)
+        for name, _ in self.fields:
+            doit(name)
+        return res
+
+if __name__ == "__main__":
+    CephStats().run()

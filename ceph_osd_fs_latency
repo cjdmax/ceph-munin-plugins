@@ -1,0 +1,54 @@
+#!/usr/bin/python
+import sys
+sys.path.append("munin-1.4-py2-none-any.whl")
+import munin
+from subprocess import Popen, PIPE
+import json
+import os
+
+class CephOSDFilestoreLatency(munin.MuninPlugin):
+    title = "OSD Filestore Latency"
+    args = "--base 1000"
+    category = "Ceph"
+
+    @property
+    def fields(self):
+        f = [("apply_latency", dict(label="apply latency",
+                            info="s",
+                            type="GAUGE",
+                            min="0")),
+             ("journal_latency", dict(label="journal latency",
+                            info="s",
+                            type="GAUGE",
+                            min="0")),
+             ("commitcycle_latency", dict(label="commitcycle latency",
+                            info="s",
+                            type="GAUGE",
+                            min="0")),
+             ]
+        return f
+
+    def execute(self):
+        if "cephosdasok" not in os.environ:
+            return
+        plugin_name = list(os.path.split(sys.argv[0]))[1]
+        m = re.search("(?{})(/d+)_.*".format("ceph_osd_"), plugin_name )
+        osdnumber = m.group(0)
+        socketfile = os.environ["cephosdasok"]+osdnumber+".asok"
+
+        cmd = "ceph --admin-daemon " + socketfile + " perfcounters_dump"
+        output = Popen(cmd.split(), stdout=PIPE).communicate()[0]
+        obj = json.loads(output)
+        filestore = obj["filestore"]
+
+        res = {}
+        def doit(n):
+            latency = filestore[n]
+            res[n] = latency["sum"] / latency["avgcount"]
+        doit("apply_latency")
+        doit("commitcycle_latency")
+        doit("journal_latency")
+        return res
+
+if __name__ == "__main__":
+    CephOSDFilestoreLatency().run()

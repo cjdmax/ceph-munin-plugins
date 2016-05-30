@@ -1,0 +1,70 @@
+#!/usr/bin/python
+
+import sys
+sys.path.append("munin-1.4-py2-none-any.whl")
+import munin
+from subprocess import Popen, PIPE
+import json
+import os
+
+class CephOSD(munin.MuninPlugin):
+    title = "OSD Op Bytes"
+    args = "--base 1024"
+    category = "Ceph"
+
+    @property
+    def fields(self):
+        f = [
+            ("op_in_bytes", dict(label="op in bytes",
+                      info="Bytes",
+                      type="COUNTER",
+                      min="0")),
+            ("op_out_bytes", dict(label="op out bytes",
+                      info="Bytes",
+                      type="COUNTER",
+                      min="0")),
+            ("op_r_out_bytes", dict(label="op r out bytes",
+                      info="Bytes",
+                      type="COUNTER",
+                      min="0")),
+            ("op_w_in_bytes", dict(label="op w in bytes",
+                      info="Bytes",
+                      type="COUNTER",
+                      min="0")),
+            ("op_rw_in_bytes", dict(label="op rw in bytes",
+                      info="Bytes",
+                      type="COUNTER",
+                      min="0")),
+            ("op_rw_out_bytes", dict(label="op rw out bytes",
+                      info="Bytes",
+                      type="COUNTER",
+                      min="0")),
+            # ("", dict(label="",
+            #           info="Bytes",
+            #           type="GAUGE",
+            #           min="0")),
+            ]
+        return f
+
+    def execute(self):
+        if "cephosdasok" not in os.environ:
+            return
+        plugin_name = list(os.path.split(sys.argv[0]))[1]
+        m = re.search("(?{})(/d+)_.*".format("ceph_osd_"), plugin_name )
+        osdnumber = m.group(0)
+        socketfile = os.environ["cephosdasok"]+osdnumber+".asok"
+
+        cmd = "ceph --admin-daemon " + socketfile + " perfcounters_dump"
+        output = Popen(cmd.split(), stdout=PIPE).communicate()[0]
+        obj = json.loads(output)
+        osd = obj["osd"]
+
+        res = {}
+        def doit(n):
+            res[n] = osd[n]
+        for field, _ in self.fields:
+            doit(field)
+        return res
+
+if __name__ == "__main__":
+    CephOSD().run()

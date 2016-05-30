@@ -1,0 +1,67 @@
+#!/usr/bin/python
+import sys
+sys.path.append("munin-1.4-py2-none-any.whl")
+import munin
+from subprocess import Popen, PIPE
+import json
+import os
+
+class CephOSD(munin.MuninPlugin):
+    title = "OSD Op Latency"
+    args = "--base 1000"
+    category = "Ceph"
+
+    @property
+    def fields(self):
+        f = [
+            ("op_latency", dict(label="op latency",
+                      info="s",
+                      type="GAUGE",
+                      min="0")),
+            ("op_r_latency", dict(label="op r latency",
+                      info="s",
+                      type="GAUGE",
+                      min="0")),
+            ("op_rw_latency", dict(label="op rw latency",
+                      info="s",
+                      type="GAUGE",
+                      min="0")),
+            ("op_w_latency", dict(label="op w latency",
+                      info="s",
+                      type="GAUGE",
+                      min="0")),
+            # ("", dict(label="",
+            #           info="s",
+            #           type="GAUGE",
+            #           min="0")),
+            ]
+        return f
+
+    def execute(self):
+        if "cephosdasok" not in os.environ:
+            return
+        plugin_name = list(os.path.split(sys.argv[0]))[1]
+        m = re.search("(?{})(/d+)_.*".format("ceph_osd_"), plugin_name )
+        osdnumber = m.group(0)
+        socketfile = os.environ["cephosdasok"]+osdnumber+".asok"
+
+        cmd = "ceph --admin-daemon " + socketfile + " perfcounters_dump"
+        output = Popen(cmd.split(), stdout=PIPE).communicate()[0]
+        obj = json.loads(output)
+        osd = obj["osd"]
+
+        res = {}
+        def doit(n):
+            latency = osd[n]
+            if latency["avgcount"] == 0:
+                res[n] = float('nan')
+            else:
+                res[n] = latency["sum"] / latency["avgcount"]
+        doit("op_latency")
+        doit("op_r_latency")
+        doit("op_rw_latency")
+        doit("op_w_latency")
+        return res
+
+if __name__ == "__main__":
+    CephOSD().run()
