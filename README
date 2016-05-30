@@ -8,6 +8,8 @@ needs a few environment vars in munin plugin conf, liek so:
 user root
 env.cephosdasok /var/run/ceph/ceph-osd.
 
+You should have symlinks with names like ceph_osd_12_bytes linked to the ceph_osd_bytes scripts. The OSD ID is extracted from the script name not unlike other munin plugins like if_err_ etcetera
+
 The ceph OSD number and .asok ext is added by the script to make /run/ceph/ceph.osd.0.asok
 
 Only the OSD scripts have been edited to detect OSD number and include the wheelfile. Lazy. 
